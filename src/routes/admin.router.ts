@@ -3,32 +3,111 @@ import { adminAuth } from "../middlewares/admin-auth.js";
 import { getDb } from "../db/sqlite.js";
 import { enqueueTransaction } from "../db/transaction-queue.js";
 import {
-  listCommentsByStatus,
+  listCommentsByStatusPaged,
   updateCommentStatus,
   deleteComment,
   updateCommentContent,
   getCommentById,
+  insertComment,
   countComments,
   countCommentsByStatus
 } from "../db/repositories/comment.repository.js";
-import { getAllSettings, upsertSetting } from "../db/repositories/settings.repository.js";
 import { topLikedArticles } from "../db/repositories/like.repository.js";
-import { adminUpdateCommentSchema, adminSettingsSchema } from "../utils/validators.js";
+import { adminUpdateCommentSchema, adminReplySchema, adminSettingsSchema } from "../utils/validators.js";
+import { loadSettings, saveSettings } from "../utils/settings.js";
 import { renderDashboard } from "./admin/dashboard.js";
 import { sendCommentApprovedEmail, sendReplyNotificationEmail } from "../services/email.service.js";
+import { findAdminByEmail, listAdmins } from "../utils/admins.js";
 
 const admin = new Hono();
 
 admin.use("*", adminAuth);
 
 admin.get("/health", (c) => c.json({ status: "ok", scope: "admin" }));
-admin.get("/", (c) => c.html(renderDashboard()));
+admin.get("/admin", (c) => c.html(renderDashboard()));
+
+admin.get("/admin/admins", (c) => {
+  return c.json({ data: listAdmins() });
+});
 
 admin.get("/admin/comments", (c) => {
   const status = c.req.query("status") || undefined;
+  const page = Math.max(Number(c.req.query("page") ?? 1), 1);
+  const pageSize = Math.min(Math.max(Number(c.req.query("pageSize") ?? 20), 1), 100);
+  const offset = (page - 1) * pageSize;
   const db = getDb();
-  const rows = listCommentsByStatus(db, status);
-  return c.json({ data: rows });
+  const rows = listCommentsByStatusPaged(db, status, pageSize, offset);
+  const total = status ? countCommentsByStatus(db, status) : countComments(db);
+  return c.json({ data: rows, page, pageSize, total });
+});
+
+admin.get("/admin/settings", (c) => {
+  const db = getDb();
+  return c.json({ data: loadSettings(db) });
+});
+
+admin.put("/admin/settings", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const parsed = adminSettingsSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Invalid input", details: parsed.error.flatten() }, 400);
+  }
+  const db = getDb();
+  const settings = saveSettings(db, parsed.data);
+  return c.json({ data: settings });
+});
+
+admin.post("/admin/comments/reply", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const parsed = adminReplySchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Invalid input", details: parsed.error.flatten() }, 400);
+  }
+
+  const headerEmail = c.req.header("cf-access-authenticated-user-email") ?? "";
+  const adminProfile =
+    (parsed.data.adminId
+      ? listAdmins().find(
+          (admin) => admin.email === parsed.data.adminId || admin.id === parsed.data.adminId
+        )
+      : null) ?? findAdminByEmail(headerEmail);
+
+  if (!adminProfile) {
+    return c.json({ error: "Admin profile not found" }, 400);
+  }
+
+  const db = getDb();
+  const id = await enqueueTransaction(db, () =>
+    insertComment(db, {
+      article_id: parsed.data.articleId,
+      parent_id: parsed.data.parentId ?? null,
+      reply_to_id: parsed.data.replyToId ?? null,
+      author_name: adminProfile.name,
+      author_email: adminProfile.email,
+      author_url: adminProfile.website ?? null,
+      content: parsed.data.content,
+      ip: null,
+      user_agent: null,
+      is_admin: 1,
+      admin_id: adminProfile.id ?? adminProfile.email,
+      status: "approved"
+    })
+  );
+
+  if (parsed.data.replyToId) {
+    const parent = getCommentById(db, parsed.data.replyToId);
+    if (parent) {
+      await sendReplyNotificationEmail({
+        to: parent.author_email,
+        parentAuthor: parent.author_name,
+        articleId: parsed.data.articleId,
+        replyAuthor: adminProfile.name,
+        replyContent: parsed.data.content
+      });
+    }
+  }
+
+  return c.json({ ok: true, id });
 });
 
 admin.put("/admin/comments/:id", async (c) => {
@@ -86,33 +165,6 @@ admin.delete("/admin/comments/:id", async (c) => {
   }
   const db = getDb();
   await enqueueTransaction(db, () => deleteComment(db, id));
-  return c.json({ ok: true });
-});
-
-admin.get("/admin/settings", (c) => {
-  const db = getDb();
-  const rows = getAllSettings(db);
-  const settings: Record<string, string> = {};
-  for (const row of rows) {
-    settings[row.key] = row.value;
-  }
-  return c.json({ data: settings });
-});
-
-admin.put("/admin/settings", async (c) => {
-  const body = await c.req.json().catch(() => null);
-  const parsed = adminSettingsSchema.safeParse(body);
-  if (!parsed.success) {
-    return c.json({ error: "Invalid input", details: parsed.error.flatten() }, 400);
-  }
-
-  const db = getDb();
-  await enqueueTransaction(db, () => {
-    for (const [key, value] of Object.entries(parsed.data)) {
-      upsertSetting(db, key, value);
-    }
-  });
-
   return c.json({ ok: true });
 });
 

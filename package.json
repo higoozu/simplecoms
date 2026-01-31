@@ -13,6 +13,7 @@
   "dependencies": {
     "@hono/node-server": "^1.13.0",
     "better-sqlite3": "^11.6.0",
+    "dotenv": "^16.4.7",
     "hono": "^4.6.3",
     "isomorphic-dompurify": "^2.12.0",
     "p-queue": "^8.0.1",

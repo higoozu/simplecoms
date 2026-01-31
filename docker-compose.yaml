@@ -1,0 +1,55 @@
+version: "3.9"
+services:
+  comment-service:
+    build: .
+    container_name: comment-service
+    ports:
+      - "8080:8080" # host:container
+    environment:
+      NODE_ENV: production # runtime mode
+      PORT: 8080 # server port
+
+      # Local testing switches
+      LOCAL_TEST: "0" # enable localhost routing in dev
+      LOCAL_ADMIN_BYPASS: "0" # bypass admin header in dev
+
+      # Backup
+      BACKUP_ENABLED: "true" # enable daily backup job
+
+      # Email provider
+      EMAIL_PROVIDER: resend # resend or sendgrid
+      RESEND_API_KEY: "" # resend api key
+      SENDGRID_API_KEY: "" # sendgrid api key
+      EMAIL_FROM: "noreply@yourdomain.com" # from email address
+      EMAIL_FROM_NAME: "Your Site" # from display name
+
+      # Turnstile
+      TURNSTILE_SECRET_KEY: "" # cloudflare turnstile secret
+
+      # Zero Trust admin
+      ADMIN_EMAILS: "admin@example.com,editor@example.com" # allowed admin emails
+      ALLOWED_COUNTRIES: "" # optional access restriction
+
+      # Logging
+      LOG_LEVEL: info # debug|info|warn|error
+      LOG_DIR: /app/logs # container log directory
+
+      # Domains
+      ADMIN_DOMAIN: comment-admin.yourdomain.com # admin host
+      API_DOMAIN: comment.yourdomain.com # api host
+
+      # Feature toggles
+      ENABLE_COMMENT_MODERATION: "true"
+      ENABLE_EMAIL_NOTIFICATIONS: "true"
+      ENABLE_AUDIT_LOG: "true"
+
+      # Gravatar
+      GRAVATAR_CDN: https://www.gravatar.com/avatar
+      GRAVATAR_DEFAULT_THEME: identicon
+
+      # Security
+      TOKEN_SECRET: "change_me"
+    volumes:
+      - ./data:/app/data # sqlite database
+      - ./backups:/app/backups # backups
+      - ./logs:/app/logs # log files

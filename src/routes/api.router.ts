@@ -16,6 +16,34 @@ import { getClientIp } from "../utils/ip.js";
 import { commentCreateSchema, likeSchema } from "../utils/validators.js";
 import { verifyToken } from "../utils/crypto.js";
 import { checkDbHealth } from "../db/health-check.js";
+import { getAvatarUrl } from "../services/avatar.service.js";
+import { listAdmins } from "../utils/admins.js";
+import { loadSettings } from "../utils/settings.js";
+import { verifyTurnstile } from "../services/turnstile.service.js";
+
+function attachAvatars(nodes: any[], adminMap: Map<string, string>): any[] {
+  return nodes.map((node) => {
+    const safe: any = {
+      id: node.id,
+      article_id: node.article_id,
+      parent_id: node.parent_id,
+      reply_to_id: node.reply_to_id,
+      reply_to_name: node.reply_to_name,
+      author_name: node.author_name,
+      author_url: node.author_url,
+      content: node.content,
+      created_at: node.created_at,
+      is_admin: Boolean(node.is_admin),
+      avatar_url:
+        node.is_admin && node.admin_id && adminMap.has(node.admin_id)
+          ? adminMap.get(node.admin_id)
+          : getAvatarUrl(node.author_email),
+      children: []
+    };
+    safe.children = node.children ? attachAvatars(node.children, adminMap) : [];
+    return safe;
+  });
+}
 
 const api = new Hono();
 
@@ -31,8 +59,16 @@ api.get("/articles/:articleId/comments", (c) => {
   const db = getDb();
   const rows = getApprovedByArticle(db, articleId);
   const tree = buildCommentTree(rows);
+  const admins = listAdmins();
+  const adminMap = new Map<string, string>();
+  for (const admin of admins) {
+    if (admin.avatar_url) {
+      adminMap.set(admin.id ?? admin.email, admin.avatar_url);
+    }
+  }
+  const withAvatars = attachAvatars(tree as any[], adminMap);
   c.header("Cache-Control", "public, max-age=60, s-maxage=300");
-  return c.json({ data: tree });
+  return c.json({ data: withAvatars });
 });
 
 api.post("/articles/:articleId/comments", async (c) => {
@@ -48,25 +84,47 @@ api.post("/articles/:articleId/comments", async (c) => {
   const db = getDb();
   const ip = getClientIp(c);
   const userAgent = c.req.header("user-agent") ?? null;
+  const settings = loadSettings(db);
+
+  if (settings.require_email && !payload.authorEmail) {
+    return c.json({ error: "Email required" }, 400);
+  }
+  if (cleaned.length < settings.min_comment_length || cleaned.length > settings.max_comment_length) {
+    return c.json({ error: "Invalid comment length" }, 400);
+  }
+  const turnstileRequired = Boolean(process.env.TURNSTILE_SECRET_KEY);
+  if (turnstileRequired && !payload.turnstile) {
+    return c.json({ error: "Missing turnstile token" }, 403);
+  }
+  if (payload.turnstile) {
+    const turnstile = await verifyTurnstile(payload.turnstile, ip);
+    if (!turnstile.ok) {
+      return c.json({ error: "Turnstile verification failed" }, 403);
+    }
+  }
 
   const spamResult = await checkSpam(db, {
     articleId,
     authorName: payload.authorName,
-    authorEmail: payload.authorEmail,
+    authorEmail: payload.authorEmail ?? "",
     content: cleaned,
     ip,
     userAgent,
     authorUrl: payload.authorUrl ?? null
   });
 
-  const status = spamResult.isSpam ? "spam" : "pending";
+  let status = spamResult.isSpam ? "spam" : "pending";
+  if (settings.auto_approve && spamResult.score <= settings.auto_approve_threshold) {
+    status = "approved";
+  }
 
   const id = await enqueueTransaction(db, () =>
     insertComment(db, {
       article_id: articleId,
       parent_id: payload.parentId ?? null,
+      reply_to_id: payload.replyToId ?? null,
       author_name: payload.authorName,
-      author_email: payload.authorEmail,
+      author_email: payload.authorEmail ?? "",
       author_url: payload.authorUrl ?? null,
       content: cleaned,
       ip,
@@ -77,6 +135,10 @@ api.post("/articles/:articleId/comments", async (c) => {
 
   if (!id) {
     return c.json({ error: "Failed to create comment" }, 500);
+  }
+
+  if (!settings.enable_email_notifications) {
+    return c.json({ id, status }, 201);
   }
 
   if (status === "spam") {
@@ -111,6 +173,16 @@ api.post("/articles/:articleId/likes", async (c) => {
   if (!ip) {
     return c.json({ error: "Unable to resolve IP" }, 400);
   }
+  const turnstileRequired = Boolean(process.env.TURNSTILE_SECRET_KEY);
+  if (turnstileRequired && !parsed.data.turnstile) {
+    return c.json({ error: "Missing turnstile token" }, 403);
+  }
+  if (parsed.data.turnstile) {
+    const turnstile = await verifyTurnstile(parsed.data.turnstile, ip);
+    if (!turnstile.ok) {
+      return c.json({ error: "Turnstile verification failed" }, 403);
+    }
+  }
 
   await enqueueTransaction(db, () =>
     insertLike(db, articleId, ip, parsed.data.fingerprint)
@@ -133,14 +205,15 @@ api.get("/email/approve", async (c) => {
   const db = getDb();
   await enqueueTransaction(db, () => updateCommentStatus(db, payload.commentId, "approved"));
   const comment = getCommentById(db, payload.commentId);
-  if (comment) {
+  const settings = loadSettings(db);
+  if (comment && settings.enable_email_notifications) {
     await sendCommentApprovedEmail({
       to: comment.author_email,
       authorName: comment.author_name,
       articleId: comment.article_id,
       content: comment.content
     });
-    if (comment.parent_id) {
+    if (comment.parent_id && settings.enable_nested_emails) {
       const parent = getCommentById(db, comment.parent_id);
       if (parent) {
         await sendReplyNotificationEmail({

@@ -4,12 +4,15 @@ export interface CommentRow {
   id: number;
   article_id: string;
   parent_id: number | null;
+  reply_to_id: number | null;
   author_name: string;
   author_email: string;
   author_url: string | null;
   content: string;
   ip: string | null;
   user_agent: string | null;
+  is_admin: number;
+  admin_id: string | null;
   status: string;
   created_at: string;
   updated_at: string;
@@ -24,23 +27,29 @@ export function getApprovedByArticle(db: Database.Database, articleId: string) {
 
 export function insertComment(
   db: Database.Database,
-  row: Omit<CommentRow, "id" | "created_at" | "updated_at" | "status"> & { status?: string }
+  row: Omit<
+    CommentRow,
+    "id" | "created_at" | "updated_at" | "status" | "is_admin" | "admin_id"
+  > & { status?: string; is_admin?: number; admin_id?: string | null }
 ) {
   const stmt = db.prepare(
     `INSERT INTO comments (
-      article_id, parent_id, author_name, author_email, author_url, content,
-      ip, user_agent, status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      article_id, parent_id, reply_to_id, author_name, author_email, author_url, content,
+      ip, user_agent, is_admin, admin_id, status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const result = stmt.run(
     row.article_id,
     row.parent_id ?? null,
+    row.reply_to_id ?? null,
     row.author_name,
     row.author_email,
     row.author_url ?? null,
     row.content,
     row.ip ?? null,
     row.user_agent ?? null,
+    row.is_admin ?? 0,
+    row.admin_id ?? null,
     row.status ?? "pending"
   );
   return result.lastInsertRowid as number;
@@ -53,6 +62,24 @@ export function listCommentsByStatus(db: Database.Database, status?: string) {
   }
   const stmt = db.prepare(`SELECT * FROM comments WHERE status = ? ORDER BY created_at DESC`);
   return stmt.all(status) as CommentRow[];
+}
+
+export function listCommentsByStatusPaged(
+  db: Database.Database,
+  status: string | undefined,
+  limit: number,
+  offset: number
+) {
+  if (!status) {
+    const stmt = db.prepare(
+      `SELECT * FROM comments ORDER BY created_at DESC LIMIT ? OFFSET ?`
+    );
+    return stmt.all(limit, offset) as CommentRow[];
+  }
+  const stmt = db.prepare(
+    `SELECT * FROM comments WHERE status = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`
+  );
+  return stmt.all(status, limit, offset) as CommentRow[];
 }
 
 export function getCommentById(db: Database.Database, id: number) {

@@ -4,12 +4,15 @@ export interface Comment {
   id: number;
   articleId: string;
   parentId: number | null;
+  replyToId: number | null;
   authorName: string;
   authorEmail: string;
   authorUrl: string | null;
   content: string;
   ip: string | null;
   userAgent: string | null;
+  isAdmin: boolean;
+  adminId: string | null;
   status: CommentStatus;
   createdAt: string;
   updatedAt: string;

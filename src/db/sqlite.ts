@@ -8,12 +8,15 @@ function createSchema(db: Database.Database) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       article_id TEXT NOT NULL,
       parent_id INTEGER,
+      reply_to_id INTEGER,
       author_name TEXT NOT NULL,
       author_email TEXT NOT NULL,
       author_url TEXT,
       content TEXT NOT NULL,
       ip TEXT,
       user_agent TEXT,
+      is_admin INTEGER NOT NULL DEFAULT 0,
+      admin_id TEXT,
       status TEXT NOT NULL DEFAULT 'pending',
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -36,6 +39,24 @@ function createSchema(db: Database.Database) {
   `);
 }
 
+function migrateSchema(db: Database.Database) {
+  const cols = db.prepare(`PRAGMA table_info(comments)`).all() as { name: string }[];
+  const colNames = new Set(cols.map((c) => c.name));
+
+  if (!colNames.has("reply_to_id")) {
+    db.exec(`ALTER TABLE comments ADD COLUMN reply_to_id INTEGER`);
+  }
+  if (!colNames.has("is_admin")) {
+    db.exec(`ALTER TABLE comments ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0`);
+  }
+  if (!colNames.has("admin_id")) {
+    db.exec(`ALTER TABLE comments ADD COLUMN admin_id TEXT`);
+  }
+
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_comments_parent_id ON comments(parent_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_comments_reply_to_id ON comments(reply_to_id)`);
+}
+
 export function getDb(dbPath = "data/comments.db") {
   if (dbInstance) {
     return dbInstance;
@@ -48,6 +69,7 @@ export function getDb(dbPath = "data/comments.db") {
   db.pragma("foreign_keys = ON");
 
   createSchema(db);
+  migrateSchema(db);
 
   dbInstance = db;
   return dbInstance;

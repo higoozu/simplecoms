@@ -1,0 +1,14 @@
+[
+  {
+    "email": "admin@example.com",
+    "name": "Site Author",
+    "website": "https://example.com",
+    "avatar_url": "https://example.com/avatar.png"
+  },
+  {
+    "email": "admin2@example.com",
+    "name": "Site Author 2",
+    "website": "https://example.com",
+    "avatar_url": "https://example.com/avatar.png"
+  }
+]

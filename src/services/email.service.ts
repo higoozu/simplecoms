@@ -6,6 +6,9 @@ import {
   spamAlertTemplate
 } from "./email-template.js";
 import { signToken } from "../utils/crypto.js";
+import { logger } from "../utils/logger.js";
+import { getDb } from "../db/sqlite.js";
+import { loadSettings } from "../utils/settings.js";
 
 function getAdminEmails() {
   return (process.env.ADMIN_EMAILS ?? "")
@@ -19,24 +22,50 @@ function getPublicBaseUrl() {
 }
 
 async function sendEmail(to: string[] | string, subject: string, html: string) {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM ?? "Comments <no-reply@example.com>";
-  if (!apiKey) return;
+  const provider = (process.env.EMAIL_PROVIDER ?? "resend").toLowerCase();
+  const fromName = process.env.EMAIL_FROM_NAME ?? "Comments";
+  const from = process.env.EMAIL_FROM ?? "no-reply@example.com";
+  const fromField = `${fromName} <${from}>`;
 
   await enqueueEmail(async () => {
-    await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        from,
-        to,
-        subject,
-        html
-      })
-    }).catch(() => null);
+    try {
+      if (provider === "sendgrid") {
+        const apiKey = process.env.SENDGRID_API_KEY;
+        if (!apiKey) return;
+        await fetch("https://api.sendgrid.com/v3/mail/send", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            personalizations: [{ to: Array.isArray(to) ? to.map((email) => ({ email })) : [{ email: to }] }],
+            from: { email: from, name: fromName },
+            subject,
+            content: [{ type: "text/html", value: html }]
+          })
+        });
+      } else {
+        const apiKey = process.env.RESEND_API_KEY;
+        if (!apiKey) return;
+        await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            from: fromField,
+            to,
+            subject,
+            html
+          })
+        });
+      }
+      logger.info("email_sent", { subject });
+    } catch (err) {
+      logger.error("email_send_failed", { err: String(err) });
+    }
   });
 }
 
@@ -58,7 +87,12 @@ export async function sendNewCommentEmail(input: {
   authorName: string;
   content: string;
 }) {
-  const admins = getAdminEmails();
+  const db = getDb();
+  const settings = loadSettings(db);
+  if (!settings.enable_email_notifications) return;
+  const admins = settings.comment_moderation_email
+    ? [settings.comment_moderation_email]
+    : getAdminEmails();
   if (!admins.length) return;
 
   const links = buildModerationLinks(input.commentId);
@@ -81,6 +115,8 @@ export async function sendCommentApprovedEmail(input: {
   articleId: string;
   content: string;
 }) {
+  const settings = loadSettings(getDb());
+  if (!settings.enable_email_notifications) return;
   await sendEmail(
     input.to,
     `Your comment is approved: ${input.articleId}`,
@@ -99,6 +135,8 @@ export async function sendReplyNotificationEmail(input: {
   replyAuthor: string;
   replyContent: string;
 }) {
+  const settings = loadSettings(getDb());
+  if (!settings.enable_email_notifications || !settings.enable_nested_emails) return;
   await sendEmail(
     input.to,
     `New reply on ${input.articleId}`,
@@ -117,7 +155,11 @@ export async function sendSpamAlertEmail(input: {
   reasons: string[];
   content: string;
 }) {
-  const admins = getAdminEmails();
+  const settings = loadSettings(getDb());
+  if (!settings.enable_email_notifications) return;
+  const admins = settings.comment_moderation_email
+    ? [settings.comment_moderation_email]
+    : getAdminEmails();
   if (!admins.length) return;
 
   await sendEmail(

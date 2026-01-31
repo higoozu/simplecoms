@@ -2,6 +2,7 @@ import type { CommentRow } from "../db/repositories/comment.repository.js";
 
 export interface CommentNode extends CommentRow {
   children: CommentNode[];
+  reply_to_name?: string;
 }
 
 export function buildCommentTree(rows: CommentRow[]) {
@@ -10,6 +11,12 @@ export function buildCommentTree(rows: CommentRow[]) {
 
   for (const row of rows) {
     map.set(row.id, { ...row, children: [] });
+  }
+
+  for (const node of map.values()) {
+    if (node.reply_to_id && map.has(node.reply_to_id)) {
+      node.reply_to_name = map.get(node.reply_to_id)!.author_name;
+    }
   }
 
   for (const node of map.values()) {
