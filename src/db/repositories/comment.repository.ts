@@ -1,0 +1,116 @@
+import type Database from "better-sqlite3";
+
+export interface CommentRow {
+  id: number;
+  article_id: string;
+  parent_id: number | null;
+  author_name: string;
+  author_email: string;
+  author_url: string | null;
+  content: string;
+  ip: string | null;
+  user_agent: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export function getApprovedByArticle(db: Database.Database, articleId: string) {
+  const stmt = db.prepare(
+    `SELECT * FROM comments WHERE article_id = ? AND status = 'approved' ORDER BY created_at ASC`
+  );
+  return stmt.all(articleId) as CommentRow[];
+}
+
+export function insertComment(
+  db: Database.Database,
+  row: Omit<CommentRow, "id" | "created_at" | "updated_at" | "status"> & { status?: string }
+) {
+  const stmt = db.prepare(
+    `INSERT INTO comments (
+      article_id, parent_id, author_name, author_email, author_url, content,
+      ip, user_agent, status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+  const result = stmt.run(
+    row.article_id,
+    row.parent_id ?? null,
+    row.author_name,
+    row.author_email,
+    row.author_url ?? null,
+    row.content,
+    row.ip ?? null,
+    row.user_agent ?? null,
+    row.status ?? "pending"
+  );
+  return result.lastInsertRowid as number;
+}
+
+export function listCommentsByStatus(db: Database.Database, status?: string) {
+  if (!status) {
+    const stmt = db.prepare(`SELECT * FROM comments ORDER BY created_at DESC`);
+    return stmt.all() as CommentRow[];
+  }
+  const stmt = db.prepare(`SELECT * FROM comments WHERE status = ? ORDER BY created_at DESC`);
+  return stmt.all(status) as CommentRow[];
+}
+
+export function getCommentById(db: Database.Database, id: number) {
+  const stmt = db.prepare(`SELECT * FROM comments WHERE id = ?`);
+  return stmt.get(id) as CommentRow | undefined;
+}
+
+export function countRecentByIp(db: Database.Database, ip: string, minutes: number) {
+  const stmt = db.prepare(
+    `SELECT COUNT(*) as count FROM comments WHERE ip = ? AND created_at >= datetime('now', ?) `
+  );
+  return (stmt.get(ip, `-${minutes} minutes`) as { count: number }).count;
+}
+
+export function countRecentDuplicateContent(
+  db: Database.Database,
+  ip: string,
+  content: string,
+  minutes: number
+) {
+  const stmt = db.prepare(
+    `SELECT COUNT(*) as count FROM comments WHERE ip = ? AND content = ? AND created_at >= datetime('now', ?)`
+  );
+  return (stmt.get(ip, content, `-${minutes} minutes`) as { count: number }).count;
+}
+
+export function countRecentByEmail(db: Database.Database, email: string, minutes: number) {
+  const stmt = db.prepare(
+    `SELECT COUNT(*) as count FROM comments WHERE author_email = ? AND created_at >= datetime('now', ?)`
+  );
+  return (stmt.get(email, `-${minutes} minutes`) as { count: number }).count;
+}
+
+export function updateCommentStatus(db: Database.Database, id: number, status: string) {
+  const stmt = db.prepare(
+    `UPDATE comments SET status = ?, updated_at = datetime('now') WHERE id = ?`
+  );
+  return stmt.run(status, id).changes;
+}
+
+export function updateCommentContent(db: Database.Database, id: number, content: string) {
+  const stmt = db.prepare(
+    `UPDATE comments SET content = ?, updated_at = datetime('now') WHERE id = ?`
+  );
+  return stmt.run(content, id).changes;
+}
+
+export function deleteComment(db: Database.Database, id: number) {
+  const stmt = db.prepare(`DELETE FROM comments WHERE id = ?`);
+  return stmt.run(id).changes;
+}
+
+export function countComments(db: Database.Database) {
+  const stmt = db.prepare(`SELECT COUNT(*) as count FROM comments`);
+  return (stmt.get() as { count: number }).count;
+}
+
+export function countCommentsByStatus(db: Database.Database, status: string) {
+  const stmt = db.prepare(`SELECT COUNT(*) as count FROM comments WHERE status = ?`);
+  return (stmt.get(status) as { count: number }).count;
+}
