@@ -63,14 +63,10 @@
     likeBtn.addEventListener("click", async () => {
       if (localStorage.getItem(likeKey)) return;
       const fingerprint = navigator.userAgent + ":" + navigator.language;
-      const turnstileToken =
-        window.turnstile && typeof window.turnstile.getResponse === "function"
-          ? window.turnstile.getResponse()
-          : "";
       const res = await fetch(`${apiBase}/articles/${encodeURIComponent(articleId)}/likes`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ fingerprint, turnstile: turnstileToken })
+        body: JSON.stringify({ fingerprint })
       });
       const data = await res.json();
       localStorage.setItem(likeKey, "1");

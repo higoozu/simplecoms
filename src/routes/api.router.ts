@@ -173,17 +173,6 @@ api.post("/articles/:articleId/likes", async (c) => {
   if (!ip) {
     return c.json({ error: "Unable to resolve IP" }, 400);
   }
-  const turnstileRequired = Boolean(process.env.TURNSTILE_SECRET_KEY);
-  if (turnstileRequired && !parsed.data.turnstile) {
-    return c.json({ error: "Missing turnstile token" }, 403);
-  }
-  if (parsed.data.turnstile) {
-    const turnstile = await verifyTurnstile(parsed.data.turnstile, ip);
-    if (!turnstile.ok) {
-      return c.json({ error: "Turnstile verification failed" }, 403);
-    }
-  }
-
   await enqueueTransaction(db, () =>
     insertLike(db, articleId, ip, parsed.data.fingerprint)
   );

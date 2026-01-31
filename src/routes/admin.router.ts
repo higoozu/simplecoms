@@ -15,6 +15,27 @@ import {
 import { topLikedArticles } from "../db/repositories/like.repository.js";
 import { adminUpdateCommentSchema, adminReplySchema, adminSettingsSchema } from "../utils/validators.js";
 import { loadSettings, saveSettings } from "../utils/settings.js";
+import { runHealthCheck } from "../db/health-monitor.js";
+import { createBackup, cleanupBackups } from "../db/backup.js";
+import { restoreLatestBackup } from "../db/restore.js";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+function readLastLines(filePath: string, limit = 50) {
+  try {
+    const raw = readFileSync(filePath, "utf8");
+    const lines = raw.trim().split("\n");
+    return lines.slice(Math.max(lines.length - limit, 0)).map((line) => {
+      try {
+        return JSON.parse(line);
+      } catch {
+        return { raw: line };
+      }
+    });
+  } catch {
+    return [];
+  }
+}
 import { renderDashboard } from "./admin/dashboard.js";
 import { sendCommentApprovedEmail, sendReplyNotificationEmail } from "../services/email.service.js";
 import { findAdminByEmail, listAdmins } from "../utils/admins.js";
@@ -55,6 +76,30 @@ admin.put("/admin/settings", async (c) => {
   const db = getDb();
   const settings = saveSettings(db, parsed.data);
   return c.json({ data: settings });
+});
+
+admin.get("/admin/health", (c) => {
+  const health = runHealthCheck();
+  return c.json({ data: health });
+});
+
+admin.get("/admin/audit", (c) => {
+  const limit = Math.min(Math.max(Number(c.req.query("limit") ?? 50), 1), 200);
+  const logDir = process.env.LOG_DIR || "logs";
+  const filePath = resolve(logDir, "admin-access.log");
+  const entries = readLastLines(filePath, limit);
+  return c.json({ data: entries });
+});
+
+admin.post("/admin/backup", async (c) => {
+  const result = await createBackup();
+  cleanupBackups(7);
+  return c.json({ data: result });
+});
+
+admin.post("/admin/restore", async (c) => {
+  const restored = await restoreLatestBackup();
+  return c.json({ data: { restored } });
 });
 
 admin.post("/admin/comments/reply", async (c) => {
