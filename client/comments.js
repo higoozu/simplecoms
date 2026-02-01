@@ -16,24 +16,47 @@
     const list = createEl("ul", "comment-list");
     nodes.forEach((node) => {
       const item = createEl("li", "comment-item");
-      const adminBadge = node.is_admin ? '<span class="comment-badge">Author</span>' : "";
-      const replyName = node.reply_to_name ? `@${node.reply_to_name} ` : "";
-      const avatar = node.avatar_url
-        ? `<img class="comment-avatar" src="${node.avatar_url}" alt="avatar" />`
-        : "";
-      item.innerHTML = `
-        <div class="comment-header">
-          ${avatar}
-          <div>
-            <div class="comment-meta">
-              <strong>${node.author_name}</strong> ${adminBadge}
-              <span>${new Date(node.created_at).toLocaleString()}</span>
-            </div>
-            <div class="comment-content">${replyName}${node.content}</div>
-          </div>
-        </div>
-        <button class="comment-reply" data-reply-id="${node.id}" data-parent-id="${node.parent_id || node.id}" data-reply-name="${node.author_name}">Reply</button>
-      `;
+
+      const header = createEl("div", "comment-header");
+      if (node.avatar_url) {
+        const avatar = createEl("img", "comment-avatar");
+        avatar.src = node.avatar_url;
+        avatar.alt = "avatar";
+        header.appendChild(avatar);
+      }
+
+      const body = createEl("div", "comment-body");
+      const meta = createEl("div", "comment-meta");
+      const author = createEl("strong");
+      author.textContent = node.author_name;
+      meta.appendChild(author);
+
+      if (node.is_admin) {
+        const badge = createEl("span", "comment-badge");
+        badge.textContent = "Author";
+        meta.appendChild(badge);
+      }
+
+      const time = createEl("span");
+      time.textContent = new Date(node.created_at).toLocaleString();
+      meta.appendChild(time);
+
+      const content = createEl("div", "comment-content");
+      const replyPrefix = node.reply_to_name ? `@${node.reply_to_name} ` : "";
+      content.textContent = replyPrefix + node.content;
+
+      body.appendChild(meta);
+      body.appendChild(content);
+      header.appendChild(body);
+      item.appendChild(header);
+
+      const replyBtn = createEl("button", "comment-reply");
+      replyBtn.textContent = "Reply";
+      replyBtn.setAttribute("data-reply-id", node.id);
+      replyBtn.setAttribute("data-parent-id", node.parent_id || node.id);
+      replyBtn.setAttribute("data-reply-name", node.author_name);
+      item.appendChild(replyBtn);
+
       if (node.children && node.children.length) {
         item.appendChild(renderTree(node.children, item));
       }

@@ -15,9 +15,11 @@ export function renderDashboard() {
         <header class="flex items-center justify-between mb-8">
           <div>
             <h1 class="text-3xl font-semibold">Comment Control</h1>
-            <p class="text-slate-400">Moderate, configure, and track engagement.</p>
+            <p class="text-slate-400">Moderate and track engagement.</p>
           </div>
-          <div class="text-sm text-slate-400">Admin UI</div>
+          <div class="space-x-3 text-sm">
+            <a class="text-slate-300 hover:text-white" href="/admin/system">System</a>
+          </div>
         </header>
 
         <section class="grid md:grid-cols-3 gap-4 mb-10">
@@ -40,111 +42,40 @@ export function renderDashboard() {
           </div>
         </section>
 
-        <section class="grid lg:grid-cols-3 gap-6 mb-8">
-          <div class="lg:col-span-2 rounded-xl bg-slate-900 border border-slate-800 p-6">
-            <div class="flex items-center justify-between mb-4">
-              <h2 class="text-xl font-semibold">Comments</h2>
-              <div class="space-x-2">
-                <button class="px-3 py-1 rounded bg-slate-800 text-sm" @click="filterStatus('pending')">Pending</button>
-                <button class="px-3 py-1 rounded bg-slate-800 text-sm" @click="filterStatus('approved')">Approved</button>
-                <button class="px-3 py-1 rounded bg-slate-800 text-sm" @click="filterStatus('spam')">Spam</button>
-                <button class="px-3 py-1 rounded bg-slate-800 text-sm" @click="filterStatus('')">All</button>
-              </div>
+        <section class="rounded-xl bg-slate-900 border border-slate-800 p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-semibold">Comments</h2>
+            <div class="space-x-2">
+              <button class="px-3 py-1 rounded bg-slate-800 text-sm" @click="filterStatus('pending')">Pending</button>
+              <button class="px-3 py-1 rounded bg-slate-800 text-sm" @click="filterStatus('approved')">Approved</button>
+              <button class="px-3 py-1 rounded bg-slate-800 text-sm" @click="filterStatus('spam')">Spam</button>
+              <button class="px-3 py-1 rounded bg-slate-800 text-sm" @click="filterStatus('')">All</button>
             </div>
-            <div class="flex items-center justify-between text-sm text-slate-400 mb-4">
-              <div x-text="'Page ' + page + ' / ' + totalPages"></div>
-              <div class="space-x-2">
-                <button class="px-2 py-1 rounded bg-slate-800" @click="prevPage()" :disabled="page <= 1">Prev</button>
-                <button class="px-2 py-1 rounded bg-slate-800" @click="nextPage()" :disabled="page >= totalPages">Next</button>
-              </div>
+          </div>
+          <div class="flex items-center justify-between text-sm text-slate-400 mb-4">
+            <div x-text="'Page ' + page + ' / ' + totalPages"></div>
+            <div class="space-x-2">
+              <button class="px-2 py-1 rounded bg-slate-800" @click="prevPage()" :disabled="page <= 1">Prev</button>
+              <button class="px-2 py-1 rounded bg-slate-800" @click="nextPage()" :disabled="page >= totalPages">Next</button>
             </div>
-            <div class="space-y-4">
-              <template x-for="comment in comments" :key="comment.id">
-                <div class="rounded-lg border border-slate-800 bg-slate-950 p-4">
-                  <div class="flex justify-between text-sm text-slate-400">
-                    <span x-text="comment.author_name + ' · ' + comment.author_email + ' · ' + comment.article_id"></span>
-                    <span x-text="comment.status"></span>
-                  </div>
-                  <div class="text-xs text-slate-500 mt-1" x-text="new Date(comment.created_at).toLocaleString()"></div>
-                  <div class="mt-2 text-slate-200" x-html="comment.content"></div>
-                  <div class="mt-3 flex gap-2">
-                    <button class="px-3 py-1 rounded bg-emerald-600 text-sm" @click="updateStatus(comment.id, 'approved')">Approve</button>
-                    <button class="px-3 py-1 rounded bg-amber-500 text-sm" @click="updateStatus(comment.id, 'spam')">Spam</button>
-                    <button class="px-3 py-1 rounded bg-slate-700 text-sm" @click="openReply(comment)">Reply</button>
-                    <button class="px-3 py-1 rounded bg-rose-600 text-sm" @click="removeComment(comment.id)">Delete</button>
-                  </div>
+          </div>
+          <div class="space-y-4">
+            <template x-for="comment in comments" :key="comment.id">
+              <div class="rounded-lg border border-slate-800 bg-slate-950 p-4">
+                <div class="flex justify-between text-sm text-slate-400">
+                  <span x-text="comment.author_name + ' · ' + comment.author_email + ' · ' + comment.article_id"></span>
+                  <span x-text="comment.status"></span>
                 </div>
-              </template>
-            </div>
-          </div>
-
-          <div class="rounded-xl bg-slate-900 border border-slate-800 p-6">
-            <h2 class="text-xl font-semibold mb-4">Settings</h2>
-            <form class="space-y-4" @submit.prevent="saveSettings">
-              <label class="flex items-center justify-between text-sm">
-                <span>Auto approve</span>
-                <input type="checkbox" x-model="settings.auto_approve" />
-              </label>
-              <label class="flex items-center justify-between text-sm">
-                <span>Require email</span>
-                <input type="checkbox" x-model="settings.require_email" />
-              </label>
-              <label class="block text-sm">
-                <span class="text-slate-400">Min length</span>
-                <input type="number" class="mt-1 w-full rounded bg-slate-950 border border-slate-700 p-2" x-model.number="settings.min_comment_length" />
-              </label>
-              <label class="block text-sm">
-                <span class="text-slate-400">Max length</span>
-                <input type="number" class="mt-1 w-full rounded bg-slate-950 border border-slate-700 p-2" x-model.number="settings.max_comment_length" />
-              </label>
-              <label class="block text-sm">
-                <span class="text-slate-400">Auto approve threshold</span>
-                <input type="number" step="0.01" class="mt-1 w-full rounded bg-slate-950 border border-slate-700 p-2" x-model.number="settings.auto_approve_threshold" />
-              </label>
-              <label class="block text-sm">
-                <span class="text-slate-400">Moderation email</span>
-                <input type="email" class="mt-1 w-full rounded bg-slate-950 border border-slate-700 p-2" x-model="settings.comment_moderation_email" />
-              </label>
-              <label class="flex items-center justify-between text-sm">
-                <span>Email notifications</span>
-                <input type="checkbox" x-model="settings.enable_email_notifications" />
-              </label>
-              <label class="flex items-center justify-between text-sm">
-                <span>Nested reply emails</span>
-                <input type="checkbox" x-model="settings.enable_nested_emails" />
-              </label>
-              <button class="w-full py-2 rounded bg-sky-600 text-sm">Save</button>
-            </form>
-          </div>
-        </section>
-
-        <section class="grid lg:grid-cols-3 gap-6 mb-8">
-          <div class="rounded-xl bg-slate-900 border border-slate-800 p-6">
-            <h2 class="text-xl font-semibold mb-4">Health</h2>
-            <div class="text-sm text-slate-400 space-y-2">
-              <div>Integrity: <span class="text-slate-200" x-text="health.integrity"></span></div>
-              <div>DB Size: <span class="text-slate-200" x-text="health.dbSize"></span></div>
-              <div>WAL Size: <span class="text-slate-200" x-text="health.walSize"></span></div>
-              <div>Backups: <span class="text-slate-200" x-text="health.backups ? 'ok' : 'missing'"></span></div>
-              <div>Pending: <span class="text-slate-200" x-text="health.pending"></span></div>
-              <div>Spam: <span class="text-slate-200" x-text="health.spam"></span></div>
-            </div>
-            <div class="mt-4 flex gap-2">
-              <button class="px-3 py-1 rounded bg-slate-700" @click="runBackup()">Backup</button>
-              <button class="px-3 py-1 rounded bg-rose-700" @click="runRestore()">Restore</button>
-            </div>
-          </div>
-
-          <div class="lg:col-span-2 rounded-xl bg-slate-900 border border-slate-800 p-6">
-            <h2 class="text-xl font-semibold mb-4">Audit Log</h2>
-            <div class="space-y-2 text-xs text-slate-400">
-              <template x-for="entry in audit" :key="entry.ts">
-                <div class="rounded bg-slate-950 border border-slate-800 p-2">
-                  <div x-text="entry.ts + ' ' + entry.event"></div>
-                  <div x-text="entry.path ? ('path: ' + entry.path) : ''"></div>
+                <div class="text-xs text-slate-500 mt-1" x-text="new Date(comment.created_at).toLocaleString()"></div>
+                <div class="mt-2 text-slate-200" x-text="comment.content"></div>
+                <div class="mt-3 flex gap-2">
+                  <button class="px-3 py-1 rounded bg-emerald-600 text-sm" @click="updateStatus(comment.id, 'approved')">Approve</button>
+                  <button class="px-3 py-1 rounded bg-amber-500 text-sm" @click="updateStatus(comment.id, 'spam')">Spam</button>
+                  <button class="px-3 py-1 rounded bg-slate-700 text-sm" @click="openReply(comment)">Reply</button>
+                  <button class="px-3 py-1 rounded bg-rose-600 text-sm" @click="removeComment(comment.id)">Delete</button>
                 </div>
-              </template>
-            </div>
+              </div>
+            </template>
           </div>
         </section>
 
@@ -173,10 +104,7 @@ export function renderDashboard() {
         function dashboard() {
           return {
             comments: [],
-            settings: {},
             admins: [],
-            audit: [],
-            health: { integrity: "", dbSize: 0, walSize: 0, backups: false, pending: 0, spam: 0 },
             stats: { totalComments: 0, pendingComments: 0, topLikes: [] },
             statusFilter: "pending",
             page: 1,
@@ -187,14 +115,7 @@ export function renderDashboard() {
             replyContent: "",
             replyAdminId: "",
             async init() {
-              await Promise.all([
-                this.loadComments(),
-                this.loadSettings(),
-                this.loadStats(),
-                this.loadAdmins(),
-                this.loadAudit(),
-                this.loadHealth()
-              ]);
+              await Promise.all([this.loadComments(), this.loadStats(), this.loadAdmins()]);
             },
             async loadComments() {
               const params = new URLSearchParams();
@@ -211,26 +132,11 @@ export function renderDashboard() {
               const data = await res.json();
               this.stats = data.data ?? this.stats;
             },
-            async loadSettings() {
-              const res = await fetch("/admin/settings");
-              const data = await res.json();
-              this.settings = data.data ?? {};
-            },
             async loadAdmins() {
               const res = await fetch("/admin/admins");
               const data = await res.json();
               this.admins = data.data ?? [];
               this.replyAdminId = this.admins[0]?.id || this.admins[0]?.email || "";
-            },
-            async loadAudit() {
-              const res = await fetch("/admin/audit?limit=50");
-              const data = await res.json();
-              this.audit = data.data ?? [];
-            },
-            async loadHealth() {
-              const res = await fetch("/admin/health");
-              const data = await res.json();
-              this.health = data.data ?? this.health;
             },
             async filterStatus(status) {
               this.statusFilter = status;
@@ -258,28 +164,11 @@ export function renderDashboard() {
               });
               await this.loadComments();
               await this.loadStats();
-              await this.loadHealth();
             },
             async removeComment(id) {
               await fetch("/admin/comments/" + id, { method: "DELETE" });
               await this.loadComments();
               await this.loadStats();
-              await this.loadHealth();
-            },
-            async saveSettings() {
-              await fetch("/admin/settings", {
-                method: "PUT",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify(this.settings)
-              });
-            },
-            async runBackup() {
-              await fetch("/admin/backup", { method: "POST" });
-              await this.loadHealth();
-            },
-            async runRestore() {
-              await fetch("/admin/restore", { method: "POST" });
-              await this.loadHealth();
             },
             openReply(comment) {
               this.replyTarget = comment;
@@ -304,7 +193,6 @@ export function renderDashboard() {
               });
               this.replyModal = false;
               await this.loadComments();
-              await this.loadHealth();
             }
           };
         }

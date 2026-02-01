@@ -10,5 +10,7 @@ export function getClientIp(c: Context) {
   const xr = c.req.header("x-real-ip");
   if (xr) return xr;
 
-  return null;
+  const raw = c.req.raw as Request & { socket?: { remoteAddress?: string } };
+  const remote = raw.socket?.remoteAddress;
+  return remote ?? null;
 }

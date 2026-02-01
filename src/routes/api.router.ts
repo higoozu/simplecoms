@@ -1,7 +1,13 @@
 import { Hono } from "hono";
 import { getDb } from "../db/sqlite.js";
 import { enqueueTransaction } from "../db/transaction-queue.js";
-import { getApprovedByArticle, insertComment, getCommentById, updateCommentStatus, deleteComment } from "../db/repositories/comment.repository.js";
+import {
+  getApprovedByArticle,
+  insertComment,
+  getCommentById,
+  updateCommentStatus,
+  deleteComment
+} from "../db/repositories/comment.repository.js";
 import { insertLike, countLikesByArticle } from "../db/repositories/like.repository.js";
 import { buildCommentTree } from "../services/comment.service.js";
 import { checkSpam } from "../services/spam.service.js";
@@ -20,6 +26,7 @@ import { getAvatarUrl } from "../services/avatar.service.js";
 import { listAdmins } from "../utils/admins.js";
 import { loadSettings } from "../utils/settings.js";
 import { verifyTurnstile } from "../services/turnstile.service.js";
+import { corsMiddleware } from "../middlewares/cors.js";
 
 function attachAvatars(nodes: any[], adminMap: Map<string, string>): any[] {
   return nodes.map((node) => {
@@ -47,11 +54,11 @@ function attachAvatars(nodes: any[], adminMap: Map<string, string>): any[] {
 
 const api = new Hono();
 
+api.use("*", corsMiddleware);
 api.get("/health", (c) => c.json({ status: "ok", scope: "api" }));
 
 api.get("/api/health", (c) => {
-  const health = checkDbHealth();
-  return c.json({ status: "ok", ...health });
+  return c.json({ status: "ok" });
 });
 
 api.get("/articles/:articleId/comments", (c) => {
@@ -173,6 +180,7 @@ api.post("/articles/:articleId/likes", async (c) => {
   if (!ip) {
     return c.json({ error: "Unable to resolve IP" }, 400);
   }
+
   await enqueueTransaction(db, () =>
     insertLike(db, articleId, ip, parsed.data.fingerprint)
   );
