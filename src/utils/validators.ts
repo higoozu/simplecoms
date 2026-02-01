@@ -41,8 +41,10 @@ export const adminSettingsSchema = z.object({
     .union([z.string().email(), z.literal("")])
     .optional(),
   enable_email_notifications: z.preprocess(toBool, z.boolean()).optional(),
+  enable_approval_emails: z.preprocess(toBool, z.boolean()).optional(),
   auto_approve_threshold: z.preprocess(toNumber, z.number().min(0).max(1)).optional(),
-  enable_nested_emails: z.preprocess(toBool, z.boolean()).optional()
+  enable_nested_emails: z.preprocess(toBool, z.boolean()).optional(),
+  enable_telegram_notifications: z.preprocess(toBool, z.boolean()).optional()
 });
 
 export const adminReplySchema = z.object({

@@ -10,6 +10,8 @@ export interface SystemSettings {
   enable_email_notifications: boolean;
   auto_approve_threshold: number;
   enable_nested_emails: boolean;
+  enable_approval_emails: boolean;
+  enable_telegram_notifications: boolean;
 }
 
 const defaults: SystemSettings = {
@@ -20,7 +22,9 @@ const defaults: SystemSettings = {
   comment_moderation_email: process.env.COMMENT_MODERATION_EMAIL ?? "",
   enable_email_notifications: process.env.ENABLE_EMAIL_NOTIFICATIONS !== "false",
   auto_approve_threshold: Number(process.env.AUTO_APPROVE_THRESHOLD ?? 0.3),
-  enable_nested_emails: process.env.ENABLE_NESTED_EMAILS !== "false"
+  enable_nested_emails: process.env.ENABLE_NESTED_EMAILS !== "false",
+  enable_approval_emails: process.env.ENABLE_APPROVAL_EMAILS !== "false",
+  enable_telegram_notifications: process.env.ENABLE_TELEGRAM_NOTIFICATIONS !== "false"
 };
 
 export function loadSettings(db: Database.Database): SystemSettings {
@@ -39,7 +43,13 @@ export function loadSettings(db: Database.Database): SystemSettings {
     auto_approve_threshold: Number(map.get("auto_approve_threshold") ?? defaults.auto_approve_threshold),
     enable_nested_emails: map.has("enable_nested_emails")
       ? map.get("enable_nested_emails") === "true"
-      : defaults.enable_nested_emails
+      : defaults.enable_nested_emails,
+    enable_approval_emails: map.has("enable_approval_emails")
+      ? map.get("enable_approval_emails") === "true"
+      : defaults.enable_approval_emails,
+    enable_telegram_notifications: map.has("enable_telegram_notifications")
+      ? map.get("enable_telegram_notifications") === "true"
+      : defaults.enable_telegram_notifications
   };
 }
 

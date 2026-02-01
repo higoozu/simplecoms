@@ -40,6 +40,7 @@ import { renderDashboard } from "./admin/dashboard.js";
 import { renderSystemPage } from "./admin/system.js";
 import { sendCommentApprovedEmail, sendReplyNotificationEmail } from "../services/email.service.js";
 import { findAdminByEmail, listAdmins } from "../utils/admins.js";
+import { notifyAdminTelegram } from "../services/telegram.service.js";
 
 const admin = new Hono();
 
@@ -146,12 +147,15 @@ admin.post("/admin/comments/reply", async (c) => {
       await sendReplyNotificationEmail({
         to: parent.author_email,
         parentAuthor: parent.author_name,
+        parentContent: parent.content,
         articleId: parsed.data.articleId,
         replyAuthor: adminProfile.name,
         replyContent: parsed.data.content
       });
     }
   }
+
+  await notifyAdminTelegram(`New reply on ${parsed.data.articleId} by ${adminProfile.name}`);
 
   return c.json({ ok: true, id });
 });
@@ -192,6 +196,7 @@ admin.put("/admin/comments/:id", async (c) => {
           await sendReplyNotificationEmail({
             to: parent.author_email,
             parentAuthor: parent.author_name,
+            parentContent: parent.content,
             articleId: comment.article_id,
             replyAuthor: comment.author_name,
             replyContent: comment.content

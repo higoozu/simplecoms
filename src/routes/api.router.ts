@@ -11,12 +11,7 @@ import {
 import { insertLike, countLikesByArticle } from "../db/repositories/like.repository.js";
 import { buildCommentTree } from "../services/comment.service.js";
 import { checkSpam } from "../services/spam.service.js";
-import {
-  sendNewCommentEmail,
-  sendSpamAlertEmail,
-  sendCommentApprovedEmail,
-  sendReplyNotificationEmail
-} from "../services/email.service.js";
+import { sendCommentApprovedEmail, sendReplyNotificationEmail } from "../services/email.service.js";
 import { sanitizeHtml } from "../utils/sanitizer.js";
 import { getClientIp } from "../utils/ip.js";
 import { commentCreateSchema, likeSchema } from "../utils/validators.js";
@@ -27,6 +22,7 @@ import { listAdmins } from "../utils/admins.js";
 import { loadSettings } from "../utils/settings.js";
 import { verifyTurnstile } from "../services/turnstile.service.js";
 import { corsMiddleware } from "../middlewares/cors.js";
+import { notifyAdminTelegram } from "../services/telegram.service.js";
 
 function attachAvatars(nodes: any[], adminMap: Map<string, string>): any[] {
   return nodes.map((node) => {
@@ -144,24 +140,12 @@ api.post("/articles/:articleId/comments", async (c) => {
     return c.json({ error: "Failed to create comment" }, 500);
   }
 
-  if (!settings.enable_email_notifications) {
-    return c.json({ id, status }, 201);
-  }
-
   if (status === "spam") {
-    await sendSpamAlertEmail({
-      articleId,
-      authorName: payload.authorName,
-      reasons: spamResult.reasons,
-      content: cleaned
-    });
+    await notifyAdminTelegram(`Spam comment on ${articleId} by ${payload.authorName}`);
+  } else if (status === "pending") {
+    await notifyAdminTelegram(`New comment pending on ${articleId} by ${payload.authorName}`);
   } else {
-    await sendNewCommentEmail({
-      commentId: id as number,
-      articleId,
-      authorName: payload.authorName,
-      content: cleaned
-    });
+    await notifyAdminTelegram(`New approved comment on ${articleId} by ${payload.authorName}`);
   }
 
   return c.json({ id, status }, 201);
@@ -203,7 +187,7 @@ api.get("/email/approve", async (c) => {
   await enqueueTransaction(db, () => updateCommentStatus(db, payload.commentId, "approved"));
   const comment = getCommentById(db, payload.commentId);
   const settings = loadSettings(db);
-  if (comment && settings.enable_email_notifications) {
+  if (comment) {
     await sendCommentApprovedEmail({
       to: comment.author_email,
       authorName: comment.author_name,
@@ -216,6 +200,7 @@ api.get("/email/approve", async (c) => {
         await sendReplyNotificationEmail({
           to: parent.author_email,
           parentAuthor: parent.author_name,
+          parentContent: parent.content,
           articleId: comment.article_id,
           replyAuthor: comment.author_name,
           replyContent: comment.content

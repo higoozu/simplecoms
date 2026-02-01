@@ -1,52 +1,33 @@
-export function newCommentTemplate(input: {
-  articleId: string;
+export function commentApprovedTemplate(input: {
   authorName: string;
+  articleId: string;
   content: string;
-  approveUrl: string;
-  deleteUrl: string;
+  viewUrl: string;
 }) {
   return `
-    <h2>New comment pending</h2>
-    <p><strong>${input.authorName}</strong> on <em>${input.articleId}</em></p>
+    <h2>Comment approved</h2>
+    <p>Hi ${input.authorName}, your comment is now live.</p>
+    <h3>Original Comment</h3>
     <div>${input.content}</div>
-    <p>
-      <a href="${input.approveUrl}">Approve</a> ·
-      <a href="${input.deleteUrl}">Delete</a>
-    </p>
-  `;
-}
-
-export function commentApprovedTemplate(input: { authorName: string; articleId: string; content: string }) {
-  return `
-    <h2>Your comment is approved</h2>
-    <p>Thanks ${input.authorName}! Your comment on <em>${input.articleId}</em> is now live.</p>
-    <div>${input.content}</div>
+    <p><a href="${input.viewUrl}">View on site</a></p>
   `;
 }
 
 export function replyNotificationTemplate(input: {
   parentAuthor: string;
+  parentContent: string;
   articleId: string;
   replyAuthor: string;
   replyContent: string;
+  viewUrl: string;
 }) {
   return `
-    <h2>You have a new reply</h2>
+    <h2>New reply to your comment</h2>
     <p>${input.replyAuthor} replied on <em>${input.articleId}</em>.</p>
+    <h3>Your Comment</h3>
+    <div>${input.parentContent}</div>
+    <h3>Reply</h3>
     <div>${input.replyContent}</div>
-  `;
-}
-
-export function spamAlertTemplate(input: {
-  articleId: string;
-  authorName: string;
-  reasons: string[];
-  content: string;
-}) {
-  return `
-    <h2>Spam detected</h2>
-    <p>Possible spam on <em>${input.articleId}</em> by ${input.authorName}</p>
-    <p>Reasons: ${input.reasons.join(", ")}</p>
-    <div>${input.content}</div>
+    <p><a href="${input.viewUrl}">View on site</a></p>
   `;
 }

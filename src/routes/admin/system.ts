@@ -55,8 +55,16 @@ export function renderSystemPage() {
                 <input type="checkbox" x-model="settings.enable_email_notifications" />
               </label>
               <label class="flex items-center justify-between text-sm">
+                <span>Approval emails</span>
+                <input type="checkbox" x-model="settings.enable_approval_emails" />
+              </label>
+              <label class="flex items-center justify-between text-sm">
                 <span>Nested reply emails</span>
                 <input type="checkbox" x-model="settings.enable_nested_emails" />
+              </label>
+              <label class="flex items-center justify-between text-sm">
+                <span>Telegram notifications</span>
+                <input type="checkbox" x-model="settings.enable_telegram_notifications" />
               </label>
               <button class="w-full py-2 rounded bg-sky-600 text-sm">Save</button>
             </form>
