@@ -29,6 +29,7 @@ services:
       # Zero Trust admin
       ADMIN_EMAILS: "admin@example.com,editor@example.com" # allowed admin emails
       ALLOWED_COUNTRIES: "" # optional access restriction
+      ADMIN_CONFIG_PATH: /app/config/admins.json # admin profiles path
 
       # Logging
       LOG_LEVEL: info # debug|info|warn|error
@@ -53,3 +54,4 @@ services:
       - ./data:/app/data # sqlite database
       - ./backups:/app/backups # backups
       - ./logs:/app/logs # log files
+      - ./config:/app/config # admin profiles
