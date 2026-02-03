@@ -5,8 +5,8 @@ export const commentCreateSchema = z.object({
   authorEmail: z.union([z.string().email().max(120), z.literal("")]).optional().nullable(),
   authorUrl: z.string().url().max(200).optional().nullable(),
   content: z.string().min(1).max(20000),
-  parentId: z.number().int().positive().optional().nullable(),
-  replyToId: z.number().int().positive().optional().nullable(),
+  parentId: z.string().min(6).max(64).optional().nullable(),
+  replyToId: z.string().min(6).max(64).optional().nullable(),
   fingerprint: z.string().min(6).max(200).optional().nullable(),
   turnstile: z.string().min(1).optional().nullable()
 });
@@ -49,8 +49,8 @@ export const adminSettingsSchema = z.object({
 
 export const adminReplySchema = z.object({
   articleId: z.string().min(1),
-  parentId: z.number().int().positive().optional().nullable(),
-  replyToId: z.number().int().positive().optional().nullable(),
+  parentId: z.string().min(6).max(64).optional().nullable(),
+  replyToId: z.string().min(6).max(64).optional().nullable(),
   content: z.string().min(1).max(5000),
   adminId: z.string().min(1).optional().nullable()
 });

@@ -10,7 +10,8 @@ import {
   getCommentById,
   insertComment,
   countComments,
-  countCommentsByStatus
+  countCommentsByStatus,
+  getIdByPublicId
 } from "../db/repositories/comment.repository.js";
 import { topLikedArticles } from "../db/repositories/like.repository.js";
 import { adminUpdateCommentSchema, adminReplySchema, adminSettingsSchema } from "../utils/validators.js";
@@ -41,6 +42,7 @@ import { renderSystemPage } from "./admin/system.js";
 import { sendCommentApprovedEmail, sendReplyNotificationEmail } from "../services/email.service.js";
 import { findAdminByEmail, listAdmins } from "../utils/admins.js";
 import { notifyAdminTelegram } from "../services/telegram.service.js";
+import { generatePublicId } from "../utils/id.js";
 
 const admin = new Hono();
 
@@ -60,7 +62,10 @@ admin.get("/admin/comments", (c) => {
   const pageSize = Math.min(Math.max(Number(c.req.query("pageSize") ?? 20), 1), 100);
   const offset = (page - 1) * pageSize;
   const db = getDb();
-  const rows = listCommentsByStatusPaged(db, status, pageSize, offset);
+  const rows = listCommentsByStatusPaged(db, status, pageSize, offset).map((row) => ({
+    ...row,
+    id: row.public_id
+  }));
   const total = status ? countCommentsByStatus(db, status) : countComments(db);
   return c.json({ data: rows, page, pageSize, total });
 });
@@ -82,7 +87,8 @@ admin.put("/admin/settings", async (c) => {
 });
 
 admin.get("/admin/health", (c) => {
-  return c.json({ data: { status: "ok" } });
+  const health = runHealthCheck();
+  return c.json({ data: health });
 });
 
 admin.get("/admin/audit", (c) => {
@@ -124,11 +130,22 @@ admin.post("/admin/comments/reply", async (c) => {
   }
 
   const db = getDb();
+  const parentInternal = parsed.data.parentId ? getIdByPublicId(db, parsed.data.parentId) : null;
+  const replyInternal = parsed.data.replyToId ? getIdByPublicId(db, parsed.data.replyToId) : null;
+  if (parsed.data.parentId && !parentInternal) {
+    return c.json({ error: "Invalid parentId" }, 400);
+  }
+  if (parsed.data.replyToId && !replyInternal) {
+    return c.json({ error: "Invalid replyToId" }, 400);
+  }
+
+  const publicId = generatePublicId();
   const id = await enqueueTransaction(db, () =>
     insertComment(db, {
+      public_id: publicId,
       article_id: parsed.data.articleId,
-      parent_id: parsed.data.parentId ?? null,
-      reply_to_id: parsed.data.replyToId ?? null,
+      parent_id: parentInternal,
+      reply_to_id: replyInternal,
       author_name: adminProfile.name,
       author_email: adminProfile.email,
       author_url: adminProfile.website ?? null,
@@ -141,8 +158,8 @@ admin.post("/admin/comments/reply", async (c) => {
     })
   );
 
-  if (parsed.data.replyToId) {
-    const parent = getCommentById(db, parsed.data.replyToId);
+  if (replyInternal) {
+    const parent = getCommentById(db, replyInternal);
     if (parent) {
       await sendReplyNotificationEmail({
         to: parent.author_email,
@@ -157,12 +174,13 @@ admin.post("/admin/comments/reply", async (c) => {
 
   await notifyAdminTelegram(`New reply on ${parsed.data.articleId} by ${adminProfile.name}`);
 
-  return c.json({ ok: true, id });
+  return c.json({ ok: true, id: publicId });
 });
 
 admin.put("/admin/comments/:id", async (c) => {
-  const id = Number(c.req.param("id"));
-  if (!Number.isFinite(id)) {
+  const publicId = c.req.param("id");
+  const id = getIdByPublicId(getDb(), publicId);
+  if (!id) {
     return c.json({ error: "Invalid id" }, 400);
   }
   const body = await c.req.json().catch(() => null);
@@ -210,8 +228,9 @@ admin.put("/admin/comments/:id", async (c) => {
 });
 
 admin.delete("/admin/comments/:id", async (c) => {
-  const id = Number(c.req.param("id"));
-  if (!Number.isFinite(id)) {
+  const publicId = c.req.param("id");
+  const id = getIdByPublicId(getDb(), publicId);
+  if (!id) {
     return c.json({ error: "Invalid id" }, 400);
   }
   const db = getDb();

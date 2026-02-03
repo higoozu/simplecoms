@@ -22,6 +22,7 @@ services:
       SENDGRID_API_KEY: "" # sendgrid api key
       EMAIL_FROM: "noreply@yourdomain.com" # from email address
       EMAIL_FROM_NAME: "Your Site" # from display name
+      PUBLIC_SITE_URL: https://domain.com # used in user email links
 
       # Turnstile
       TURNSTILE_SECRET_KEY: "" # cloudflare turnstile secret
@@ -30,6 +31,7 @@ services:
       ADMIN_EMAILS: "admin@example.com,editor@example.com" # allowed admin emails
       ALLOWED_COUNTRIES: "" # optional access restriction
       ADMIN_CONFIG_PATH: /app/config/admins.json # admin profiles path
+      # ADMIN_PROFILES_JSON: "[]" # optional inline admin profiles JSON
 
       # Logging
       LOG_LEVEL: info # debug|info|warn|error
@@ -38,11 +40,29 @@ services:
       # Domains
       ADMIN_DOMAIN: comment-admin.yourdomain.com # admin host
       API_DOMAIN: comment.yourdomain.com # api host
+      PUBLIC_BASE_URL: https://comment.yourdomain.com # fallback base url
+      ALLOWED_ORIGINS: https://domain.com # cors allowed origins
 
       # Feature toggles
       ENABLE_COMMENT_MODERATION: "true"
       ENABLE_EMAIL_NOTIFICATIONS: "true"
       ENABLE_AUDIT_LOG: "true"
+      ENABLE_APPROVAL_EMAILS: "true"
+      ENABLE_TELEGRAM_NOTIFICATIONS: "true"
+
+      # Settings defaults
+      AUTO_APPROVE: "false"
+      REQUIRE_EMAIL: "true"
+      MAX_COMMENT_LENGTH: "5000"
+      MIN_COMMENT_LENGTH: "1"
+      COMMENT_MODERATION_EMAIL: ""
+      AUTO_APPROVE_THRESHOLD: "0.3"
+      ENABLE_NESTED_EMAILS: "true"
+
+      # Akismet
+      AKISMET_KEY: ""
+      AKISMET_BLOG: https://your-blog-domain.com
+      SPAM_THRESHOLD: "0.7"
 
       # Gravatar
       GRAVATAR_CDN: https://www.gravatar.com/avatar
@@ -50,6 +70,10 @@ services:
 
       # Security
       TOKEN_SECRET: "change_me"
+
+      # Telegram notifications
+      TELEGRAM_BOT_TOKEN: ""
+      TELEGRAM_CHAT_ID: ""
     volumes:
       - ./data:/app/data # sqlite database
       - ./backups:/app/backups # backups

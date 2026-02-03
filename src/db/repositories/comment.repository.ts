@@ -2,6 +2,7 @@ import type Database from "better-sqlite3";
 
 export interface CommentRow {
   id: number;
+  public_id: string;
   article_id: string;
   parent_id: number | null;
   reply_to_id: number | null;
@@ -25,6 +26,13 @@ export function getApprovedByArticle(db: Database.Database, articleId: string) {
   return stmt.all(articleId) as CommentRow[];
 }
 
+export function countApprovedByArticle(db: Database.Database, articleId: string) {
+  const stmt = db.prepare(
+    `SELECT COUNT(*) as count FROM comments WHERE article_id = ? AND status = 'approved'`
+  );
+  return (stmt.get(articleId) as { count: number }).count;
+}
+
 export function insertComment(
   db: Database.Database,
   row: Omit<
@@ -34,11 +42,12 @@ export function insertComment(
 ) {
   const stmt = db.prepare(
     `INSERT INTO comments (
-      article_id, parent_id, reply_to_id, author_name, author_email, author_url, content,
+      public_id, article_id, parent_id, reply_to_id, author_name, author_email, author_url, content,
       ip, user_agent, is_admin, admin_id, status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const result = stmt.run(
+    row.public_id,
     row.article_id,
     row.parent_id ?? null,
     row.reply_to_id ?? null,
@@ -85,6 +94,24 @@ export function listCommentsByStatusPaged(
 export function getCommentById(db: Database.Database, id: number) {
   const stmt = db.prepare(`SELECT * FROM comments WHERE id = ?`);
   return stmt.get(id) as CommentRow | undefined;
+}
+
+export function getCommentByPublicId(db: Database.Database, publicId: string) {
+  const stmt = db.prepare(`SELECT * FROM comments WHERE public_id = ?`);
+  return stmt.get(publicId) as CommentRow | undefined;
+}
+
+export function getIdByPublicId(db: Database.Database, publicId: string) {
+  const numeric = /^\d+$/.test(publicId);
+  if (numeric) {
+    const row = db.prepare(`SELECT id FROM comments WHERE id = ?`).get(Number(publicId)) as
+      | { id: number }
+      | undefined;
+    return row?.id ?? null;
+  }
+  const stmt = db.prepare(`SELECT id FROM comments WHERE public_id = ?`);
+  const row = stmt.get(publicId) as { id: number } | undefined;
+  return row?.id ?? null;
 }
 
 export function countRecentByIp(db: Database.Database, ip: string, minutes: number) {

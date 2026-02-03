@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import { backfillPublicIds } from "./migrate-public-id.js";
 
 let dbInstance: Database.Database | null = null;
 
@@ -6,6 +7,7 @@ function createSchema(db: Database.Database) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS comments (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      public_id TEXT UNIQUE,
       article_id TEXT NOT NULL,
       parent_id INTEGER,
       reply_to_id INTEGER,
@@ -43,6 +45,9 @@ function migrateSchema(db: Database.Database) {
   const cols = db.prepare(`PRAGMA table_info(comments)`).all() as { name: string }[];
   const colNames = new Set(cols.map((c) => c.name));
 
+  if (!colNames.has("public_id")) {
+    db.exec(`ALTER TABLE comments ADD COLUMN public_id TEXT`);
+  }
   if (!colNames.has("reply_to_id")) {
     db.exec(`ALTER TABLE comments ADD COLUMN reply_to_id INTEGER`);
   }
@@ -55,6 +60,7 @@ function migrateSchema(db: Database.Database) {
 
   db.exec(`CREATE INDEX IF NOT EXISTS idx_comments_parent_id ON comments(parent_id)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_comments_reply_to_id ON comments(reply_to_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_comments_public_id ON comments(public_id)`);
 }
 
 export function getDb(dbPath = "data/comments.db") {
@@ -70,6 +76,7 @@ export function getDb(dbPath = "data/comments.db") {
 
   createSchema(db);
   migrateSchema(db);
+  backfillPublicIds(db);
 
   dbInstance = db;
   return dbInstance;

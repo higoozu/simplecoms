@@ -2,9 +2,9 @@
   const container = document.querySelector("[data-comment-root]");
   if (!container) return;
 
-  const articleId = container.getAttribute("data-article-id") || window.location.pathname;
+  const articlePath = container.getAttribute("data-article-id") || window.location.pathname;
   const apiBase = container.getAttribute("data-api-base") || "";
-  const likeKey = `comment-like-${articleId}`;
+  const likeKey = `comment-like-${articlePath}`;
 
   const createEl = (tag, cls) => {
     const el = document.createElement(tag);
@@ -67,12 +67,25 @@
   };
 
   const loadComments = async () => {
-    const res = await fetch(`${apiBase}/articles/${encodeURIComponent(articleId)}/comments`);
+    const res = await fetch(`${apiBase}/articles/${encodeURIComponent(articlePath)}/comments`);
     const data = await res.json();
     const tree = data.data || [];
     const target = container.querySelector(".comment-tree");
-    target.innerHTML = "";
-    renderTree(tree, target);
+    if (target) {
+      target.innerHTML = "";
+      renderTree(tree, target);
+    }
+    const countEl = container.querySelector(".comment-count");
+    if (countEl && typeof data.count === "number") {
+      countEl.textContent = String(data.count);
+    }
+  };
+
+  const loadLikes = async () => {
+    const res = await fetch(`${apiBase}/articles/${encodeURIComponent(articlePath)}/likes`);
+    const data = await res.json();
+    const count = container.querySelector(".comment-like-count");
+    if (count) count.textContent = data.likes ?? "0";
   };
 
   const setupLike = async () => {
@@ -86,7 +99,7 @@
     likeBtn.addEventListener("click", async () => {
       if (localStorage.getItem(likeKey)) return;
       const fingerprint = navigator.userAgent + ":" + navigator.language;
-      const res = await fetch(`${apiBase}/articles/${encodeURIComponent(articleId)}/likes`, {
+      const res = await fetch(`${apiBase}/articles/${encodeURIComponent(articlePath)}/likes`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ fingerprint })
@@ -153,8 +166,10 @@
       if (window.turnstile && typeof window.turnstile.getResponse === "function") {
         payload.turnstile = window.turnstile.getResponse();
       }
+      if (!payload.parentId) delete payload.parentId;
+      if (!payload.replyToId) delete payload.replyToId;
 
-      await fetch(`${apiBase}/articles/${encodeURIComponent(articleId)}/comments`, {
+      await fetch(`${apiBase}/articles/${encodeURIComponent(articlePath)}/comments`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload)
@@ -166,6 +181,7 @@
 
   const init = async () => {
     await loadComments();
+    await loadLikes();
     await setupLike();
     setupForm();
   };

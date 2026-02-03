@@ -6,7 +6,9 @@ import {
   insertComment,
   getCommentById,
   updateCommentStatus,
-  deleteComment
+  deleteComment,
+  getIdByPublicId,
+  countApprovedByArticle
 } from "../db/repositories/comment.repository.js";
 import { insertLike, countLikesByArticle } from "../db/repositories/like.repository.js";
 import { buildCommentTree } from "../services/comment.service.js";
@@ -23,14 +25,15 @@ import { loadSettings } from "../utils/settings.js";
 import { verifyTurnstile } from "../services/turnstile.service.js";
 import { corsMiddleware } from "../middlewares/cors.js";
 import { notifyAdminTelegram } from "../services/telegram.service.js";
+import { generatePublicId } from "../utils/id.js";
 
 function attachAvatars(nodes: any[], adminMap: Map<string, string>): any[] {
   return nodes.map((node) => {
     const safe: any = {
-      id: node.id,
+      id: node.public_id ?? node.id,
       article_id: node.article_id,
-      parent_id: node.parent_id,
-      reply_to_id: node.reply_to_id,
+      parent_id: node.parent_public_id ?? null,
+      reply_to_id: node.reply_to_public_id ?? null,
       reply_to_name: node.reply_to_name,
       author_name: node.author_name,
       author_url: node.author_url,
@@ -58,24 +61,36 @@ api.get("/api/health", (c) => {
 });
 
 api.get("/articles/:articleId/comments", (c) => {
-  const articleId = c.req.param("articleId");
+  const articleId = encodeURIComponent(c.req.param("articleId"));
   const db = getDb();
   const rows = getApprovedByArticle(db, articleId);
+  const count = countApprovedByArticle(db, articleId);
   const tree = buildCommentTree(rows);
   const admins = listAdmins();
   const adminMap = new Map<string, string>();
+  const idMap = new Map<number, string>();
+  for (const row of rows) {
+    idMap.set(row.id, row.public_id);
+  }
   for (const admin of admins) {
     if (admin.avatar_url) {
       adminMap.set(admin.id ?? admin.email, admin.avatar_url);
     }
   }
-  const withAvatars = attachAvatars(tree as any[], adminMap);
+  const mapNode = (node: any): any => ({
+    ...node,
+    public_id: idMap.get(node.id),
+    parent_public_id: node.parent_id ? idMap.get(node.parent_id) : null,
+    reply_to_public_id: node.reply_to_id ? idMap.get(node.reply_to_id) : null,
+    children: node.children ? node.children.map(mapNode) : []
+  });
+  const withAvatars = attachAvatars(tree.map(mapNode) as any[], adminMap);
   c.header("Cache-Control", "public, max-age=60, s-maxage=300");
-  return c.json({ data: withAvatars });
+  return c.json({ count, data: withAvatars });
 });
 
 api.post("/articles/:articleId/comments", async (c) => {
-  const articleId = c.req.param("articleId");
+  const articleId = encodeURIComponent(c.req.param("articleId"));
   const body = await c.req.json().catch(() => null);
   const parsed = commentCreateSchema.safeParse(body);
   if (!parsed.success) {
@@ -121,11 +136,22 @@ api.post("/articles/:articleId/comments", async (c) => {
     status = "approved";
   }
 
+  const parentInternal = payload.parentId ? getIdByPublicId(db, payload.parentId) : null;
+  const replyInternal = payload.replyToId ? getIdByPublicId(db, payload.replyToId) : null;
+  if (payload.parentId && !parentInternal) {
+    return c.json({ error: "Invalid parentId" }, 400);
+  }
+  if (payload.replyToId && !replyInternal) {
+    return c.json({ error: "Invalid replyToId" }, 400);
+  }
+
+  const publicId = generatePublicId();
   const id = await enqueueTransaction(db, () =>
     insertComment(db, {
+      public_id: publicId,
       article_id: articleId,
-      parent_id: payload.parentId ?? null,
-      reply_to_id: payload.replyToId ?? null,
+      parent_id: parentInternal,
+      reply_to_id: replyInternal,
       author_name: payload.authorName,
       author_email: payload.authorEmail ?? "",
       author_url: payload.authorUrl ?? null,
@@ -148,11 +174,11 @@ api.post("/articles/:articleId/comments", async (c) => {
     await notifyAdminTelegram(`New approved comment on ${articleId} by ${payload.authorName}`);
   }
 
-  return c.json({ id, status }, 201);
+  return c.json({ id: publicId, status }, 201);
 });
 
 api.post("/articles/:articleId/likes", async (c) => {
-  const articleId = c.req.param("articleId");
+  const articleId = encodeURIComponent(c.req.param("articleId"));
   const body = await c.req.json().catch(() => null);
   const parsed = likeSchema.safeParse(body);
   if (!parsed.success) {
@@ -170,6 +196,14 @@ api.post("/articles/:articleId/likes", async (c) => {
   );
 
   const count = countLikesByArticle(db, articleId);
+  return c.json({ articleId, likes: count });
+});
+
+api.get("/articles/:articleId/likes", (c) => {
+  const articleId = encodeURIComponent(c.req.param("articleId"));
+  const db = getDb();
+  const count = countLikesByArticle(db, articleId);
+  c.header("Cache-Control", "public, max-age=60, s-maxage=300");
   return c.json({ articleId, likes: count });
 });
 

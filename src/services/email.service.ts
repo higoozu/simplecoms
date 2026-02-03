@@ -16,9 +16,10 @@ function shouldSendDedupe(key: string) {
 }
 
 function getArticleUrl(articleId: string) {
-  const base = process.env.PUBLIC_SITE_URL ?? "";
+  const base = process.env.PUBLIC_SITE_URL ?? process.env.PUBLIC_BASE_URL ?? "";
   if (!base) return "";
-  return `${base.replace(/\/$/, "")}/articles/${encodeURIComponent(articleId)}`;
+  const decoded = decodeURIComponent(articleId);
+  return `${base.replace(/\/$/, "")}${decoded}`;
 }
 
 async function sendEmail(to: string, subject: string, html: string) {

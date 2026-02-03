@@ -13,6 +13,8 @@ import { logger } from "./utils/logger.js";
 const app = new Hono();
 const port = Number(process.env.PORT ?? 8080);
 const localTest = process.env.LOCAL_TEST === "1";
+const adminDomain = process.env.ADMIN_DOMAIN ?? "comment-admin.domain.com";
+const apiDomain = process.env.API_DOMAIN ?? "comment.domain.com";
 
 const dataDir = resolve("data");
 mkdirSync(dataDir, { recursive: true });
@@ -37,11 +39,11 @@ app.all("*", (c) => {
     return apiRouter.fetch(c.req.raw);
   }
 
-  if (host === "comment-admin.domain.com") {
+  if (host === adminDomain) {
     return adminRouter.fetch(c.req.raw);
   }
 
-  if (host === "comment.domain.com") {
+  if (host === apiDomain) {
     return apiRouter.fetch(c.req.raw);
   }
 
