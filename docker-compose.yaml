@@ -23,6 +23,11 @@ services:
       EMAIL_FROM: "noreply@yourdomain.com" # from email address
       EMAIL_FROM_NAME: "Your Site" # from display name
       PUBLIC_SITE_URL: https://domain.com # used in user email links
+      SMTP_HOST: "" # smtp host
+      SMTP_PORT: "587" # smtp port
+      SMTP_SECURE: "false" # true for SMTPS
+      SMTP_USER: "" # smtp username
+      SMTP_PASS: "" # smtp password
 
       # Turnstile
       TURNSTILE_SECRET_KEY: "" # cloudflare turnstile secret

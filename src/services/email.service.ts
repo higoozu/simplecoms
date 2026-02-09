@@ -3,6 +3,7 @@ import { commentApprovedTemplate, replyNotificationTemplate } from "./email-temp
 import { logger } from "../utils/logger.js";
 import { getDb } from "../db/sqlite.js";
 import { loadSettings } from "../utils/settings.js";
+import nodemailer from "nodemailer";
 
 const dedupeMap = new Map<string, number>();
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -29,7 +30,26 @@ async function sendEmail(to: string, subject: string, html: string) {
   const fromField = `${fromName} <${from}>`;
 
   const attemptSend = async () => {
-    if (provider === "sendgrid") {
+    if (provider === "smtp") {
+      const host = process.env.SMTP_HOST;
+      const port = Number(process.env.SMTP_PORT ?? 587);
+      const secure = process.env.SMTP_SECURE === "true";
+      const user = process.env.SMTP_USER;
+      const pass = process.env.SMTP_PASS;
+      if (!host || !user || !pass) return;
+      const transporter = nodemailer.createTransport({
+        host,
+        port,
+        secure,
+        auth: { user, pass }
+      });
+      await transporter.sendMail({
+        from: fromField,
+        to,
+        subject,
+        html
+      });
+    } else if (provider === "sendgrid") {
       const apiKey = process.env.SENDGRID_API_KEY;
       if (!apiKey) return;
       await fetch("https://api.sendgrid.com/v3/mail/send", {
