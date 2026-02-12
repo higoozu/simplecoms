@@ -3,5 +3,6 @@
 /data
 /backups
 /logs
+/config
 .env
 .DS_Store
