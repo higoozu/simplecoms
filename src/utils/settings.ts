@@ -6,7 +6,6 @@ export interface SystemSettings {
   require_email: boolean;
   max_comment_length: number;
   min_comment_length: number;
-  comment_moderation_email: string;
   enable_email_notifications: boolean;
   auto_approve_threshold: number;
   enable_nested_emails: boolean;
@@ -19,7 +18,6 @@ const defaults: SystemSettings = {
   require_email: process.env.REQUIRE_EMAIL !== "false",
   max_comment_length: Number(process.env.MAX_COMMENT_LENGTH ?? 5000),
   min_comment_length: Number(process.env.MIN_COMMENT_LENGTH ?? 1),
-  comment_moderation_email: process.env.COMMENT_MODERATION_EMAIL ?? "",
   enable_email_notifications: process.env.ENABLE_EMAIL_NOTIFICATIONS !== "false",
   auto_approve_threshold: Number(process.env.AUTO_APPROVE_THRESHOLD ?? 0.3),
   enable_nested_emails: process.env.ENABLE_NESTED_EMAILS !== "false",
@@ -31,12 +29,11 @@ export function loadSettings(db: Database.Database): SystemSettings {
   const rows = getAllSettings(db);
   const map = new Map(rows.map((r) => [r.key, r.value]));
   return {
-    auto_approve: map.get("auto_approve") === "true" || defaults.auto_approve,
+    auto_approve: map.has("auto_approve") ? map.get("auto_approve") === "true" : defaults.auto_approve,
     require_email:
       map.has("require_email") ? map.get("require_email") === "true" : defaults.require_email,
     max_comment_length: Number(map.get("max_comment_length") ?? defaults.max_comment_length),
     min_comment_length: Number(map.get("min_comment_length") ?? defaults.min_comment_length),
-    comment_moderation_email: map.get("comment_moderation_email") ?? defaults.comment_moderation_email,
     enable_email_notifications: map.has("enable_email_notifications")
       ? map.get("enable_email_notifications") === "true"
       : defaults.enable_email_notifications,

@@ -46,10 +46,6 @@ export function renderSystemPage() {
                 <span class="text-slate-400">Auto approve threshold</span>
                 <input type="number" step="0.01" class="mt-1 w-full rounded bg-slate-950 border border-slate-700 p-2" x-model.number="settings.auto_approve_threshold" />
               </label>
-              <label class="block text-sm">
-                <span class="text-slate-400">Moderation email</span>
-                <input type="email" class="mt-1 w-full rounded bg-slate-950 border border-slate-700 p-2" x-model="settings.comment_moderation_email" />
-              </label>
               <label class="flex items-center justify-between text-sm">
                 <span>Email notifications</span>
                 <input type="checkbox" x-model="settings.enable_email_notifications" />

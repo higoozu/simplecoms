@@ -37,9 +37,6 @@ export const adminSettingsSchema = z.object({
   require_email: z.preprocess(toBool, z.boolean()).optional(),
   max_comment_length: z.preprocess(toNumber, z.number().int().min(1).max(20000)).optional(),
   min_comment_length: z.preprocess(toNumber, z.number().int().min(1).max(20000)).optional(),
-  comment_moderation_email: z
-    .union([z.string().email(), z.literal("")])
-    .optional(),
   enable_email_notifications: z.preprocess(toBool, z.boolean()).optional(),
   enable_approval_emails: z.preprocess(toBool, z.boolean()).optional(),
   auto_approve_threshold: z.preprocess(toNumber, z.number().min(0).max(1)).optional(),

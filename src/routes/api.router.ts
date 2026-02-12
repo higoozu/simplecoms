@@ -4,20 +4,15 @@ import { enqueueTransaction } from "../db/transaction-queue.js";
 import {
   getApprovedByArticle,
   insertComment,
-  getCommentById,
-  updateCommentStatus,
-  deleteComment,
   getIdByPublicId,
   countApprovedByArticle
 } from "../db/repositories/comment.repository.js";
 import { insertLike, countLikesByArticle } from "../db/repositories/like.repository.js";
 import { buildCommentTree } from "../services/comment.service.js";
 import { checkSpam } from "../services/spam.service.js";
-import { sendCommentApprovedEmail, sendReplyNotificationEmail } from "../services/email.service.js";
 import { sanitizeHtml } from "../utils/sanitizer.js";
 import { getClientIp } from "../utils/ip.js";
 import { commentCreateSchema, likeSchema } from "../utils/validators.js";
-import { verifyToken } from "../utils/crypto.js";
 import { checkDbHealth } from "../db/health-check.js";
 import { getAvatarUrl } from "../services/avatar.service.js";
 import { listAdmins } from "../utils/admins.js";
@@ -131,10 +126,11 @@ api.post("/articles/:articleId/comments", async (c) => {
     authorUrl: payload.authorUrl ?? null
   });
 
-  let status = spamResult.isSpam ? "spam" : "pending";
-  if (settings.auto_approve && spamResult.score <= settings.auto_approve_threshold) {
-    status = "approved";
-  }
+  const status = spamResult.isSpam
+    ? "spam"
+    : settings.auto_approve && spamResult.score <= settings.auto_approve_threshold
+      ? "approved"
+      : "pending";
 
   const parentInternal = payload.parentId ? getIdByPublicId(db, payload.parentId) : null;
   const replyInternal = payload.replyToId ? getIdByPublicId(db, payload.replyToId) : null;
@@ -205,58 +201,6 @@ api.get("/articles/:articleId/likes", (c) => {
   const count = countLikesByArticle(db, articleId);
   c.header("Cache-Control", "public, max-age=60, s-maxage=300");
   return c.json({ articleId, likes: count });
-});
-
-api.get("/email/approve", async (c) => {
-  const token = c.req.query("token");
-  const secret = process.env.TOKEN_SECRET ?? "";
-  if (!token || !secret) return c.text("Invalid token", 400);
-
-  const payload = verifyToken<{ action: string; commentId: number; exp: number }>(token, secret);
-  if (!payload || payload.action !== "approve" || payload.exp < Date.now()) {
-    return c.text("Invalid token", 400);
-  }
-
-  const db = getDb();
-  await enqueueTransaction(db, () => updateCommentStatus(db, payload.commentId, "approved"));
-  const comment = getCommentById(db, payload.commentId);
-  const settings = loadSettings(db);
-  if (comment) {
-    await sendCommentApprovedEmail({
-      to: comment.author_email,
-      authorName: comment.author_name,
-      articleId: comment.article_id,
-      content: comment.content
-    });
-    if (comment.parent_id && settings.enable_nested_emails) {
-      const parent = getCommentById(db, comment.parent_id);
-      if (parent) {
-        await sendReplyNotificationEmail({
-          to: parent.author_email,
-          parentAuthor: parent.author_name,
-          parentContent: parent.content,
-          articleId: comment.article_id,
-          replyAuthor: comment.author_name,
-          replyContent: comment.content
-        });
-      }
-    }
-  }
-  return c.text("Approved");
-});
-
-api.get("/email/delete", async (c) => {
-  const token = c.req.query("token");
-  const secret = process.env.TOKEN_SECRET ?? "";
-  if (!token || !secret) return c.text("Invalid token", 400);
-
-  const payload = verifyToken<{ action: string; commentId: number; exp: number }>(token, secret);
-  if (!payload || payload.action !== "delete" || payload.exp < Date.now()) {
-    return c.text("Invalid token", 400);
-  }
-  const db = getDb();
-  await enqueueTransaction(db, () => deleteComment(db, payload.commentId));
-  return c.text("Deleted");
 });
 
 export default api;
